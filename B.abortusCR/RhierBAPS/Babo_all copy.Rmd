@@ -1,0 +1,132 @@
+---
+title: "R Notebook for all B. abortus tree; rhierBAPS analysis"
+date: "June 2nd, 2019"
+author: "Marcela Suarez-Esquivel"
+output: html_notebook
+---
+
+Subset with all B. abortus included in the analysis. Only other terrestrial Brucella species (B. melitensis, B. canis, etc.) were excluded.
+
+
+#Importing libraries
+
+
+```{r}
+library(rhierbaps)
+library(ggtree)
+library(phytools)
+library(ape)
+```
+
+#Loading data
+
+```{r}
+abortus.aln <-system.file("BabCR", "all-abortus.aln", package = "rhierbaps")
+
+all.snp.matrix <- rhierbaps::load_fasta(abortus.aln)
+```
+
+
+#Running hierBAPS
+
+```{r}
+hb.allBabo.results <- rhierbaps::hierBAPS(all.snp.matrix, max.depth = 4, n.pops = 20, quiet = TRUE)
+head(hb.allBabo.results$partition.df)
+```
+
+
+#Plotting results
+
+```{r}
+abortus_all.tre <- system.file("BabCR", "abortus_all.tre", package = "rhierbaps")
+
+allab_tree <- phytools::read.newick(abortus_all.tre)
+
+```
+
+#Simple coloured tree
+
+```{r}
+gg_all <- ggtree(allab_tree, layout = "rectangular")
+gg_all <- gg_all %<+% hb.allBabo.results$partition.df
+gg_all <- gg_all + geom_tippoint(aes(color = factor(`level 1`)))
+gg_all
+```
+
+#Label tree
+
+```{r}
+gg_all2 <- ggtree(allab_tree, layout = "rectangular", branch.length = "none")
+gg_all2 <- gg_all2 %<+% hb.allBabo.results$partition.df
+gg_all2 <- gg_all2 + geom_tippoint(aes(color = factor(`level 1`)))
+gg_all2 <- gg_all2 + theme(legend.position = "right")
+gg_all2 <- gg_all2 + geom_tiplab(aes(label = `level 2`), size = 1, offset = 1)
+gg_all2
+```
+
+
+#Subclusters zoom
+
+```{r}
+plot_sub_cluster(hb.allBabo.results, allab_tree, level = 1, sub.cluster = 1)
+```
+
+
+#Subclusters zoom, letter change
+
+```{r}
+hb.object <- hb.allBabo.results
+tree <- allab_tree
+level <- 1
+sub.cluster <- 1
+```
+
+```{r}
+level <- level+1
+cluster.isolate <- hb.object$partition.df$Isolate[hb.object$partition.df[,level]==sub.cluster]
+```
+
+#Need to create a tempfile to suprres the output of gzoom
+```{r}
+ff <- tempfile()
+grDevices::png(filename = ff)
+gg2 <- ggtree::gzoom(tree,focus = which(tree$tip.label %in% cluster.isolate))
+grDevices::dev.off()
+unlink(ff)
+```
+
+```{r}
+temp_column_id <- paste(c("factor(`level ", level, "`)"), collapse = "")
+```
+
+```{r}
+p2 <- gg2$p2
+```
+
+#Remove the old tip lables
+```{r}
+gg2$p2$layers <- gg2$p2$layers[-3]
+```
+
+#Add new labels
+```{r}
+p2 <- p2 + ggtree::geom_tiplab(size=1)
+```
+
+```{r}
+p2 <- ggtree::`%<+%`(p2, hb.object$partition.df)
+p2 <- p2 + ggtree::geom_tippoint(ggplot2::aes_string(color=temp_column_id))
+p2 <- p2+ ggplot2::labs(color=temp_column_id) + ggplot2::theme(legend.position="right") 
+p2
+```
+
+
+```{r}
+ggtree::multiplot(gg2$p1, p2, ncol = 2)
+```
+
+
+
+
+
+
